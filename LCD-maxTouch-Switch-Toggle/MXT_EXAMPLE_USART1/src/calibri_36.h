@@ -4989,17 +4989,7 @@ const tFont calibri_36 = { 95, calibri_36_array, ' ', '~' };
 
 void printa_texto(const char *text, int x, int y) {
     ili9488_set_orientation(ILI9488_FLIP_X);
-    tFont *font = &calibri_36;
-    char *p = text;
-    while(*p != NULL) {
-        char letter = *p;
-        int letter_offset = letter - font->start_char;
-        if(letter <= font->end_char) {
-            tChar *current_char = font->chars + letter_offset;
-            ili9488_draw_pixmap(x, y, (current_char->image->width), (current_char->image->height), current_char->image->data);
-            x += current_char->image->width + 1;
-        }
-        p++;
-    }
+    ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
+    ili9488_draw_string(x, y, text);
     ili9488_set_orientation(PORTRAIT);
 }

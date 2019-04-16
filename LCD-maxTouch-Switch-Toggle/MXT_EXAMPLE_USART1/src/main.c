@@ -128,9 +128,13 @@ struct ciclo{
 #include "Diario.h"
 #include "Enxague.h"
 #include "laundry.h"
+#include "voltar.h"
+#include "check.h"
+#include "errado.h"
 #include "maquina1.h"
 #include "right.h"
 #include "left.h"
+#include "stop.h"
 #include "tfont.h"
 #include "calibri_36.h"
 
@@ -145,15 +149,32 @@ const uint32_t BUTTON_H = 150;
 const uint32_t BUTTON_BORDER = 2;
 const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
+
+// POSICOES DO HOME
 const uint32_t direita_x = 128;
 const uint32_t direita_y = 405;
 const uint32_t esquerda_x = 128;
 const uint32_t esquerda_y = 10;
-const uint32_t icone_x = 96;
-const uint32_t icone_y = 175;
-int estadoAtual = 0;  
+const uint32_t icone_x_home = 136; // 
+const uint32_t icone_y_home = 175;
+const uint32_t nome_x = 100;
+const uint32_t nome_y = 300;
+
+// POSICOES DO AJUSTES
+const uint32_t voltar_x = 20;
+const uint32_t voltar_y = 10;
+const uint32_t check_x = 20;
+const uint32_t check_y = 340;
+
+// POSICOES DO PROCESSA
+const uint32_t icone_x = 142;
+const uint32_t icone_y = 20;
+const uint32_t stop_x = 100; 
+const uint32_t stop_y = 300;
+
+
 /*
-estado:
+Estado:
 0 = home
 1 = ajustes
 2 = progresso
@@ -161,7 +182,8 @@ estado:
 4 = interrupcao (senha)
 5 = finalizacao
 */
-int indice = 0;
+int estadoAtual = 0;  
+int indice = 0;    // para acessar o icone certo
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -299,7 +321,6 @@ void desenha_icone(tImage icone, int x, int y){
 	ili9488_draw_pixmap(x, y, icone.width, icone.height, icone.data);
 }
 
-
 tImage selectIcon(int index){
 	if (index == 0){
 		return Rapido;
@@ -319,17 +340,20 @@ tImage selectIcon(int index){
 }
 
 void home(){   // t_ciclo t_c){
-	//printa_texto("oi" , 1, 1);
+	
 	if (indice <= -1){
 		indice = 4;
 	}else if (indice >= 5){
 		indice = 0;
 	}
-	desenha_icone(selectIcon(indice), icone_x, icone_y); 
+	
+	desenha_icone(selectIcon(indice), icone_x_home, icone_y_home); 
 	desenha_icone(right, direita_x, direita_y);
 	desenha_icone(left, esquerda_x, esquerda_y);
+	//ili9488_draw_string(icone_x_home, icone_y_home+30, "TOMA");
 	
 	
+	//printa_texto(t_c.nome, 247, 10);
 	
 	
 	//char b[32];
@@ -339,7 +363,31 @@ void home(){   // t_ciclo t_c){
 
 void ajustes(){
 	clear();
+	
+	desenha_icone(voltar, voltar_x, voltar_y);
+	desenha_icone(check, check_x, check_y);
+	printa_texto("Lavagem:" , 50, 30);
+	printa_texto("Tempo Estimado:" , 50, 100);
 }
+
+void progresso(){
+	desenha_icone(selectIcon(indice), icone_x, icone_y);
+	desenha_icone(stop, stop_x, stop_y);
+}
+
+void porta_aberta(){
+	
+}
+
+void interrupcao(){ //senha
+	
+}
+
+void finalizacao(){
+	
+}
+
+
 
 uint32_t convert_axis_system_x(uint32_t touch_y) {
 	// entrada: 4096 - 0 (sistema de coordenadas atual)
@@ -355,7 +403,7 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 
 void update_screen(uint32_t tx, uint32_t ty) {
 	if (estadoAtual == 0){ // home
-		if(tx >= direita_x && tx <= direita_x + right.width) {
+		if(tx >= nome_x && tx <= direita_x + right.width) {
 			if(ty >= direita_y-10 && ty <= direita_y+right.height+10) {
 				indice++;
 				home();
@@ -364,14 +412,46 @@ void update_screen(uint32_t tx, uint32_t ty) {
 				home();
 			}
 		}
-		if(tx >= icone_x && tx <= icone_x + Diario.width) {
-			if(ty >= icone_y-10 && ty <= icone_y+Diario.height+10) {
+		if(tx >= icone_x_home && tx <= icone_x_home + Diario.width) {
+			if(ty >= icone_y_home-10 && ty <= icone_y_home+Diario.height+10) {
 				estadoAtual = 1; // ajustes
 				ajustes();
 			}
 		}
 	}
+	if (estadoAtual == 1){ // ajustes
+		if(tx >= voltar_x && tx <= voltar_x + voltar.width) {
+			if(ty >= check_y-10 && ty <= check_y+check.height+10) {
+				estadoAtual = 2;
+				clear();
+				progresso();
+			} else if(ty >= voltar_y-10 && ty <= voltar_y + voltar.height + 10) {
+				estadoAtual = 0;
+				clear();
+				home();
+			}
+		}
+		
+	}
+	if (estadoAtual == 2){ // progresso
+		if(tx >= stop_x && tx <= stop_x + stop.width) {
+			if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
+				estadoAtual = 0;
+				clear();
+				home();
+			} 
+		}
+		
+	}
+	if (estadoAtual == 3){ // porta aberta
+		
+	}
+	if (estadoAtual == 4){ // interrupcao
 	
+	}
+	if (estadoAtual == 5){ // finalizacao
+		
+	}
 }
 
 void mxt_handler(struct mxt_device *device)
