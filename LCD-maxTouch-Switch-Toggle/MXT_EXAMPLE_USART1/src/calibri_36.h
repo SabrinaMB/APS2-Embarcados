@@ -4988,8 +4988,6 @@ static const tChar calibri_36_array[] = {
 const tFont calibri_36 = { 95, calibri_36_array, ' ', '~' };
 
 void printa_texto(const char *text, int x, int y) {
-    ili9488_set_orientation(ILI9488_FLIP_X);
     ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
     ili9488_draw_string(x, y, text);
-    ili9488_set_orientation(PORTRAIT);
 }

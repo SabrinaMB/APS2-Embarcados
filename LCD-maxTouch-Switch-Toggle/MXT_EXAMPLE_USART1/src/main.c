@@ -101,8 +101,6 @@ typedef struct {
 } tImage;
 
 
-
-
 /*
 typedef struct tImage icone;
 
@@ -131,6 +129,7 @@ struct ciclo{
 #include "voltar.h"
 #include "check.h"
 #include "errado.h"
+#include "keypad.h"
 #include "maquina1.h"
 #include "right.h"
 #include "left.h"
@@ -151,24 +150,24 @@ const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
 // POSICOES DO HOME
-const uint32_t direita_x = 128;
-const uint32_t direita_y = 405;
-const uint32_t esquerda_x = 128;
-const uint32_t esquerda_y = 10;
-const uint32_t icone_x_home = 136; // 
-const uint32_t icone_y_home = 175;
+const uint32_t direita_x = 246;
+const uint32_t direita_y = 208;
+const uint32_t esquerda_x = 10;
+const uint32_t esquerda_y = 208;
+const uint32_t icone_x_home = 96; // 
+const uint32_t icone_y_home = 106;
 const uint32_t nome_x = 100;
 const uint32_t nome_y = 300;
 
 // POSICOES DO AJUSTES
 const uint32_t voltar_x = 20;
-const uint32_t voltar_y = 10;
-const uint32_t check_x = 20;
+const uint32_t voltar_y = 340;
+const uint32_t check_x = 182;
 const uint32_t check_y = 340;
 
 // POSICOES DO PROCESSA
-const uint32_t icone_x = 142;
-const uint32_t icone_y = 20;
+const uint32_t icone_x = 20;
+const uint32_t icone_y = 60;
 const uint32_t stop_x = 100; 
 const uint32_t stop_y = 300;
 
@@ -339,8 +338,25 @@ tImage selectIcon(int index){
 	}
 }
 
+t_ciclo selectCiclo(int index){
+	if (index == 0){
+		return c_rapido;
+	}
+	if (index == 1){
+		return c_diario;
+	}
+	if (index == 2){
+		return c_pesado;
+	}
+	if (index == 3){
+		return c_enxague;
+	}
+	if (index == 4){
+		return c_centrifuga;
+	}
+}
+
 void home(){   // t_ciclo t_c){
-	
 	if (indice <= -1){
 		indice = 4;
 	}else if (indice >= 5){
@@ -353,24 +369,33 @@ void home(){   // t_ciclo t_c){
 	//ili9488_draw_string(icone_x_home, icone_y_home+30, "TOMA");
 	
 	
-	//printa_texto(t_c.nome, 247, 10);
+	//
 	
+	/*
+	char b[32];
+	sprintf(b, "%d", ILI9488_LCD_HEIGHT);*/
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(nome_x-10, nome_y-10, nome_x+1000, nome_y+100);
 	
-	//char b[32];
-	//sprintf(b, "%d", ILI9488_LCD_HEIGHT);
+	printa_texto(selectCiclo(indice).nome, nome_x, nome_y);
 	
 }
 
 void ajustes(){
-	clear();
-	
 	desenha_icone(voltar, voltar_x, voltar_y);
 	desenha_icone(check, check_x, check_y);
-	printa_texto("Lavagem:" , 50, 30);
-	printa_texto("Tempo Estimado:" , 50, 100);
+	char a[32];
+	char b[32];
+	sprintf(a, "Lavagem: %s", selectCiclo(indice).nome);
+	sprintf(b, "Tempo Estimado: %d", selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo);
+	printa_texto(a, 20, 20);
+	printa_texto(b, 20, 60);
 }
 
-void progresso(){
+void progresso(){ 
+	char a[32];
+	sprintf(a, "Em progresso: %s", selectCiclo(indice).nome);
+	printa_texto(a, 20, 20);
 	desenha_icone(selectIcon(indice), icone_x, icone_y);
 	desenha_icone(stop, stop_x, stop_y);
 }
@@ -380,6 +405,51 @@ void porta_aberta(){
 }
 
 void interrupcao(){ //senha
+	desenha_icone(keypad, 50, 191);
+	
+}
+
+void senha(int numero){
+	char a[32];
+	sprintf(a, "numero digitado: %d", numero);
+}
+
+int teclado(uint32_t tx, uint32_t ty){
+	if(ty >= 191) {
+		if (tx >= 50 && tx <= 270){ //esta no teclado
+			if (tx <= 123){
+				if (ty >= 405){
+					return 10;  //clear
+				}else if (ty >= 334){
+					return 1;
+				} else if (ty >= 263){
+					return 4;
+				} else if (ty >= 191){
+					return 7;
+				}
+			}else if (tx <= 196){
+				if (ty >= 405){
+					return 0; 
+				}else if (ty >= 334){
+					return 2;
+				} else if (ty >= 263){
+					return 5;
+				} else if (ty >= 191){
+					return 8;
+				}
+			}else{
+			if (ty >= 405){
+				return 11; // ok
+			}else if (ty >= 334){
+				return 3;
+			} else if (ty >= 263){
+				return 6;
+			} else if (ty >= 191){
+				return 9;
+			}
+		}
+		}
+	}
 	
 }
 
@@ -403,29 +473,30 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 
 void update_screen(uint32_t tx, uint32_t ty) {
 	if (estadoAtual == 0){ // home
-		if(tx >= nome_x && tx <= direita_x + right.width) {
-			if(ty >= direita_y-10 && ty <= direita_y+right.height+10) {
-				indice++;
-				home();
-				} else if(ty >= esquerda_y-10 && ty <= esquerda_y + left.height + 10) {
+		if(ty >= esquerda_y-10 && ty <= esquerda_y + left.height + 10) {
+			if(tx >= direita_x && tx <= direita_x + right.width){
 				indice--;
 				home();
+			} else if(tx >= esquerda_x && tx <= esquerda_x + left.width){
+				indice++;
+				home();
 			}
-		}
-		if(tx >= icone_x_home && tx <= icone_x_home + Diario.width) {
+			
+		} if(tx >= icone_x_home && tx <= icone_x_home + Diario.width) {
 			if(ty >= icone_y_home-10 && ty <= icone_y_home+Diario.height+10) {
 				estadoAtual = 1; // ajustes
+				clear();
 				ajustes();
 			}
 		}
 	}
 	if (estadoAtual == 1){ // ajustes
-		if(tx >= voltar_x && tx <= voltar_x + voltar.width) {
-			if(ty >= check_y-10 && ty <= check_y+check.height+10) {
+		if(ty >= voltar_y) {
+			if(tx >= check_x) {
 				estadoAtual = 2;
 				clear();
 				progresso();
-			} else if(ty >= voltar_y-10 && ty <= voltar_y + voltar.height + 10) {
+			} else if(tx <= voltar_x+voltar.width) {
 				estadoAtual = 0;
 				clear();
 				home();
@@ -436,9 +507,9 @@ void update_screen(uint32_t tx, uint32_t ty) {
 	if (estadoAtual == 2){ // progresso
 		if(tx >= stop_x && tx <= stop_x + stop.width) {
 			if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
-				estadoAtual = 0;
+				estadoAtual = 4; // senha
 				clear();
-				home();
+				interrupcao();
 			} 
 		}
 		
@@ -447,7 +518,7 @@ void update_screen(uint32_t tx, uint32_t ty) {
 		
 	}
 	if (estadoAtual == 4){ // interrupcao
-	
+		senha(teclado(tx, ty));
 	}
 	if (estadoAtual == 5){ // finalizacao
 		
