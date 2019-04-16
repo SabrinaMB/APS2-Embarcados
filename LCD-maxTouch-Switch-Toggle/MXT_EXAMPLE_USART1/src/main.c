@@ -171,7 +171,19 @@ const uint32_t icone_y = 60;
 const uint32_t stop_x = 100; 
 const uint32_t stop_y = 300;
 
+//RTT
+static void RTT_init(uint16_t pllPreScale, uint32_t IrqNPulses);
+volatile Bool f_rtt_alarme = false;
+volatile int segundo = 0;
+volatile int minuto = 0;
+volatile int hora = 0;
+volatile char tempo[32];
 
+//Senha
+volatile char senhaReal[4] = {1, 2, 3, 4};
+volatile char senhaUser[4] = {0, 0, 0, 0};	
+	
+	
 /*
 Estado:
 0 = home
@@ -181,8 +193,50 @@ Estado:
 4 = interrupcao (senha)
 5 = finalizacao
 */
-int estadoAtual = 0;  
-int indice = 0;    // para acessar o icone certo
+volatile int estadoAtual = 0;  
+volatile int indice = 0;    // para acessar o icone certo
+	
+void RTT_Handler(void)
+{
+	uint32_t ul_status;
+
+	/* Get RTT status */
+	ul_status = rtt_get_status(RTT);
+
+	/* IRQ due to Time has changed */
+	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {  }
+
+	/* IRQ due to Alarm */
+	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
+		//pin_toggle(LED_PIO, LED_IDX_MASK);    // BLINK Led
+		f_rtt_alarme = true;                  // flag RTT alarme
+	}
+}
+
+static float get_time_rtt(){
+	uint ul_previous_time = rtt_read_timer_value(RTT);
+}
+
+static void RTT_init(uint16_t pllPreScale, uint32_t IrqNPulses)
+{
+	uint32_t ul_previous_time;
+
+	/* Configure RTT for a 1 second tick interrupt */
+	rtt_sel_source(RTT, false);
+	rtt_init(RTT, pllPreScale);
+	
+	ul_previous_time = rtt_read_timer_value(RTT);
+	while (ul_previous_time == rtt_read_timer_value(RTT));
+	
+	rtt_write_alarm_time(RTT, IrqNPulses+ul_previous_time);
+
+	/* Enable RTT interrupt */
+	NVIC_DisableIRQ(RTT_IRQn);
+	NVIC_ClearPendingIRQ(RTT_IRQn);
+	NVIC_SetPriority(RTT_IRQn, 0);
+	NVIC_EnableIRQ(RTT_IRQn);
+	rtt_enable_interrupt(RTT, RTT_MR_ALMIEN);
+}	
 	
 static void configure_lcd(void){
 	/* Initialize display parameter */
@@ -207,6 +261,11 @@ static void configure_lcd(void){
 void clear(void){
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
 	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
+}
+
+void clear_min(void){
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(10, 250, ILI9488_LCD_WIDTH-1, 265);
 }
 
 static void mxt_init(struct mxt_device *device)
@@ -398,6 +457,8 @@ void progresso(){
 	printa_texto(a, 20, 20);
 	desenha_icone(selectIcon(indice), icone_x, icone_y);
 	desenha_icone(stop, stop_x, stop_y);
+	sprintf(a, "Tempo de Lavagem: %d min", selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo);
+	printa_texto(a, 10, 230);
 }
 
 void porta_aberta(){
@@ -581,7 +642,8 @@ int main(void)
 		.paritytype   = USART_SERIAL_PARITY,
 		.stopbits     = USART_SERIAL_STOP_BIT
 	};
-
+	
+	f_rtt_alarme = true;
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
 	configure_lcd();
@@ -604,7 +666,37 @@ int main(void)
 		if (mxt_is_message_pending(&device)) {
 			mxt_handler(&device);
 		}
-		
+		if (f_rtt_alarme && (estadoAtual == 2 || estadoAtual == 3)) {
+			
+			uint16_t pllPreScale = (int) (((float) 32768) / 2.0);
+			uint32_t irqRTTvalue  = 2;
+			
+			// reinicia RTT para gerar um novo IRQ
+			RTT_init(pllPreScale, irqRTTvalue);
+			
+			segundo += 1;
+			if (segundo >= 60) {
+				minuto += 1;
+				segundo =0;
+			}
+			if (minuto >= 60) {
+				hora += 1;
+				minuto = 0;
+			}
+			sprintf(tempo, "Tempo: %d:%d:%d", hora, minuto, segundo);
+			if (estadoAtual == 2) {
+				clear_min();
+				printa_texto(tempo, 10, 250);
+				if (minuto >= selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo) {
+					estadoAtual = 5;
+					clear();
+					finalizacao();
+				}	
+			}
+			
+			
+			f_rtt_alarme = false;
+		}
 	}
 
 	return 0;
