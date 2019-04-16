@@ -149,6 +149,13 @@ const uint32_t BUTTON_BORDER = 2;
 const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
 const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
+
+// butaum OLED
+#define BUT_PIO           PIOD
+#define BUT_PIO_ID        ID_PIOD
+#define BUT_PIO_IDX       28
+#define BUT_IDX_MASK      (1u << BUT_PIO_IDX)
+
 // POSICOES DO HOME
 const uint32_t direita_x = 246;
 const uint32_t direita_y = 208;
@@ -195,6 +202,24 @@ Estado:
 */
 volatile int estadoAtual = 0;  
 volatile int indice = 0;    // para acessar o icone certo
+volatile int buttonpress = 0;
+
+void pin_toggle(Pio *pio, uint32_t mask){
+	if(pio_get_output_data_status(pio, mask))
+	pio_clear(pio, mask);
+	else
+	pio_set(pio,mask);
+}
+
+void but_callback(void)
+{
+	if (buttonpress == 0) {
+		buttonpress = 1;	
+	} else {
+		buttonpress = 0;
+	}
+	
+}
 	
 void RTT_Handler(void)
 {
@@ -533,56 +558,58 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 }
 
 void update_screen(uint32_t tx, uint32_t ty) {
-	if (estadoAtual == 0){ // home
-		if(ty >= esquerda_y-10 && ty <= esquerda_y + left.height + 10) {
-			if(tx >= direita_x && tx <= direita_x + right.width){
-				indice--;
-				home();
-			} else if(tx >= esquerda_x && tx <= esquerda_x + left.width){
-				indice++;
-				home();
-			}
+	if (buttonpress) {
+		if (estadoAtual == 0){ // home
+			if(ty >= esquerda_y-10 && ty <= esquerda_y + left.height + 10) {
+				if(tx >= direita_x && tx <= direita_x + right.width){
+					indice--;
+					home();
+				} else if(tx >= esquerda_x && tx <= esquerda_x + left.width){
+					indice++;
+					home();
+				}
 			
-		} if(tx >= icone_x_home && tx <= icone_x_home + Diario.width) {
-			if(ty >= icone_y_home-10 && ty <= icone_y_home+Diario.height+10) {
-				estadoAtual = 1; // ajustes
-				clear();
-				ajustes();
+			} if(tx >= icone_x_home && tx <= icone_x_home + Diario.width) {
+				if(ty >= icone_y_home-10 && ty <= icone_y_home+Diario.height+10) {
+					estadoAtual = 1; // ajustes
+					clear();
+					ajustes();
+				}
 			}
 		}
-	}
-	if (estadoAtual == 1){ // ajustes
-		if(ty >= voltar_y) {
-			if(tx >= check_x) {
-				estadoAtual = 2;
-				clear();
-				progresso();
-			} else if(tx <= voltar_x+voltar.width) {
-				estadoAtual = 0;
-				clear();
-				home();
+		if (estadoAtual == 1){ // ajustes
+			if(ty >= voltar_y) {
+				if(tx >= check_x) {
+					estadoAtual = 2;
+					clear();
+					progresso();
+				} else if(tx <= voltar_x+voltar.width) {
+					estadoAtual = 0;
+					clear();
+					home();
+				}
 			}
+		
 		}
+		if (estadoAtual == 2){ // progresso
+			if(tx >= stop_x && tx <= stop_x + stop.width) {
+				if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
+					estadoAtual = 4; // senha
+					clear();
+					interrupcao();
+				} 
+			}
 		
-	}
-	if (estadoAtual == 2){ // progresso
-		if(tx >= stop_x && tx <= stop_x + stop.width) {
-			if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
-				estadoAtual = 4; // senha
-				clear();
-				interrupcao();
-			} 
 		}
+		if (estadoAtual == 3){ // porta aberta
 		
-	}
-	if (estadoAtual == 3){ // porta aberta
+		}
+		if (estadoAtual == 4){ // interrupcao
+			senha(teclado(tx, ty));
+		}
+		if (estadoAtual == 5){ // finalizacao
 		
-	}
-	if (estadoAtual == 4){ // interrupcao
-		senha(teclado(tx, ty));
-	}
-	if (estadoAtual == 5){ // finalizacao
-		
+		}
 	}
 }
 
@@ -614,9 +641,11 @@ void mxt_handler(struct mxt_device *device)
 		sprintf(buf, "Nr: %1d, X:%4d, Y:%4d, Status:0x%2x conv X:%3d Y:%3d\n\r",
 				touch_event.id, touch_event.x, touch_event.y,
 				touch_event.status, conv_x, conv_y);
+				
+		if (touch_event.status < 60) {
+			update_screen(conv_x, conv_y);	
+		}
 		
-		update_screen(conv_x, conv_y);
-
 		/* Add the new string to the string buffer */
 		strcat(tx_buf, buf);
 		i++;
@@ -631,6 +660,33 @@ void mxt_handler(struct mxt_device *device)
 	}
 }
 
+void io_init(void) {
+	// Inicializa clock do periférico PIO responsavel pelo botao
+	pmc_enable_periph_clk(BUT_PIO_ID);
+
+	// Configura PIO para lidar com o pino do botão como entrada
+	// com pull-up
+	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+
+	// Configura interrupção no pino referente ao botao e associa
+	// função de callback caso uma interrupção for gerada
+	// a função de callback é a: but_callback()
+	pio_handler_set(BUT_PIO,
+	BUT_PIO_ID,
+	BUT_IDX_MASK,
+	PIO_IT_FALL_EDGE,
+	but_callback);
+
+	// Ativa interrupção
+	pio_enable_interrupt(BUT_PIO, BUT_IDX_MASK);
+
+	// Configura NVIC para receber interrupcoes do PIO do botao
+	// com prioridade 4 (quanto mais próximo de 0 maior)
+	NVIC_EnableIRQ(BUT_PIO_ID);
+	NVIC_SetPriority(BUT_PIO_ID, 4); // Prioridade 4
+}
+
+
 int main(void)
 {
 	struct mxt_device device; /* Device data container */
@@ -643,9 +699,11 @@ int main(void)
 		.stopbits     = USART_SERIAL_STOP_BIT
 	};
 	
+	buttonpress = 0;
 	f_rtt_alarme = true;
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
+	io_init();
 	configure_lcd();
 	draw_screen();
 	//draw_button(0);
