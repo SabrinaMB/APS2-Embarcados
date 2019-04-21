@@ -130,6 +130,8 @@ struct ciclo{
 #include "check.h"
 #include "errado.h"
 #include "keypad.h"
+#include "smiley.h"
+#include "warning.h"
 #include "maquina1.h"
 #include "right.h"
 #include "left.h"
@@ -143,18 +145,19 @@ struct ciclo{
 #define USART_TX_MAX_LENGTH     0xff
 
 struct ili9488_opt_t g_ili9488_display_opt;
-const uint32_t BUTTON_W = 120;
-const uint32_t BUTTON_H = 150;
-const uint32_t BUTTON_BORDER = 2;
-const uint32_t BUTTON_X = ILI9488_LCD_WIDTH/2;
-const uint32_t BUTTON_Y = ILI9488_LCD_HEIGHT/2;
 
 
-// butaum OLED
-#define BUT_PIO           PIOD
-#define BUT_PIO_ID        ID_PIOD
-#define BUT_PIO_IDX       28
-#define BUT_IDX_MASK      (1u << BUT_PIO_IDX)
+// butaum trava de crianca
+#define TRAVA_PIO           PIOD
+#define TRAVA_PIO_ID        ID_PIOD
+#define TRAVA_PIO_IDX       28
+#define TRAVA_IDX_MASK      (1u << TRAVA_PIO_IDX)
+
+// botao porta
+#define PORTA_PIO           PIOC
+#define PORTA_PIO_ID        ID_PIOC
+#define PORTA_PIO_IDX       17
+#define PORTA_IDX_MASK      (1u << PORTA_PIO_IDX)
 
 // POSICOES DO HOME
 const uint32_t direita_x = 246;
@@ -185,6 +188,7 @@ volatile int segundo = 0;
 volatile int minuto = 0;
 volatile int hora = 0;
 volatile char tempo[32];
+volatile char tempo_faltante[32];
 
 //Senha
 volatile char senhaReal[4] = {1, 2, 3, 4};
@@ -200,9 +204,11 @@ Estado:
 4 = interrupcao (senha)
 5 = finalizacao
 */
+volatile int estadoAnterior = 0; 
 volatile int estadoAtual = 0;  
 volatile int indice = 0;    // para acessar o icone certo
-volatile int buttonpress = 0;
+volatile int buttonpress = 1;
+volatile int portaAberta = 0;
 
 void pin_toggle(Pio *pio, uint32_t mask){
 	if(pio_get_output_data_status(pio, mask))
@@ -211,16 +217,31 @@ void pin_toggle(Pio *pio, uint32_t mask){
 	pio_set(pio,mask);
 }
 
+
+void clear(void){
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
+}
+
+void clear_min(void){
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(250, 230, ILI9488_LCD_WIDTH-1, 265);
+}
+
+
+
 void but_callback(void)
 {
 	if (buttonpress == 0) {
-		buttonpress = 1;	
-	} else {
+		buttonpress = 1;
+		} else {
 		buttonpress = 0;
 	}
 	
 }
-	
+
+
+
 void RTT_Handler(void)
 {
 	uint32_t ul_status;
@@ -282,17 +303,6 @@ static void configure_lcd(void){
  *
  * \param device Pointer to mxt_device struct
  */
-
-void clear(void){
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
-	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
-}
-
-void clear_min(void){
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
-	ili9488_draw_filled_rectangle(10, 250, ILI9488_LCD_WIDTH-1, 265);
-}
-
 static void mxt_init(struct mxt_device *device)
 {
 	enum status_code status;
@@ -383,22 +393,6 @@ void draw_screen(void) {
 	ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 }
 
-void draw_button(uint32_t clicked) {
-	static uint32_t last_state = 255; // undefined
-	if(clicked == last_state) return;
-	
-	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_BLACK));
-	ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2, BUTTON_Y-BUTTON_H/2, BUTTON_X+BUTTON_W/2, BUTTON_Y+BUTTON_H/2);
-	if(clicked) {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_TOMATO));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y+BUTTON_H/2-BUTTON_BORDER);
-	} else {
-		ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
-		ili9488_draw_filled_rectangle(BUTTON_X-BUTTON_W/2+BUTTON_BORDER, BUTTON_Y-BUTTON_H/2+BUTTON_BORDER, BUTTON_X+BUTTON_W/2-BUTTON_BORDER, BUTTON_Y-BUTTON_BORDER);
-	}
-	last_state = clicked;
-}
-
 void desenha_icone(tImage icone, int x, int y){
 	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
 	ili9488_draw_pixmap(x, y, icone.width, icone.height, icone.data);
@@ -482,23 +476,31 @@ void progresso(){
 	printa_texto(a, 20, 20);
 	desenha_icone(selectIcon(indice), icone_x, icone_y);
 	desenha_icone(stop, stop_x, stop_y);
-	sprintf(a, "Tempo de Lavagem: %d min", selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo);
-	printa_texto(a, 10, 230);
+	//sprintf(a, "Tempo de Lavagem: %d min", selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo);
+	//printa_texto(a, 10, 230);
 }
 
 void porta_aberta(){
-	
+	clear();
+	desenha_icone(warning, 32, 69);
+	char a[32];
+	sprintf(a, "PORTA ABERTA!!!");
+	printa_texto(a, 78, 395);
 }
+
+
+/*
 
 void interrupcao(){ //senha
 	desenha_icone(keypad, 50, 191);
 	
-}
+} 
 
 void senha(int numero){
 	char a[32];
 	sprintf(a, "numero digitado: %d", numero);
 }
+
 
 int teclado(uint32_t tx, uint32_t ty){
 	if(ty >= 191) {
@@ -538,8 +540,35 @@ int teclado(uint32_t tx, uint32_t ty){
 	}
 	
 }
+*/
 
 void finalizacao(){
+	//ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
+	//ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
+	char a[32];
+	sprintf(a, "Ciclo %s Concluido!\n\nToque para voltar ao menu", selectCiclo(indice).nome);
+	printa_texto(a, 13, 40);
+	desenha_icone(selectIcon(indice), icone_x_home, icone_y_home+50);
+	//desenha_icone(smiley, 32, 100);
+	//desenha_icone(check, icone_x_home, 320);
+}
+
+
+
+void porta_callback(void)
+{
+	if (portaAberta == 0 && estadoAtual != 2) {
+		portaAberta = 1;
+	} else {
+		portaAberta = 0;
+		if (estadoAtual == 3){
+			estadoAtual = 1;
+			clear();
+			ajustes();
+		}
+		
+		
+	}
 	
 }
 
@@ -592,23 +621,37 @@ void update_screen(uint32_t tx, uint32_t ty) {
 		
 		}
 		if (estadoAtual == 2){ // progresso
-			if(tx >= stop_x && tx <= stop_x + stop.width) {
-				if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
-					estadoAtual = 4; // senha
-					clear();
-					interrupcao();
-				} 
+			if (portaAberta == 0){
+				segundo = 0;
+				if(tx >= stop_x && tx <= stop_x + stop.width) {
+					if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
+						/*estadoAtual = 4; // senha
+						clear();
+						interrupcao();*/
+						estadoAtual = 0; // home
+						clear();
+						home();
+					} 
+				}
+			} else{
+				estadoAtual = 3;
+				clear();
+				porta_aberta();
 			}
-		
 		}
-		if (estadoAtual == 3){ // porta aberta
 		
-		}
+		/*if (estadoAtual == 3){ // porta aberta
+			clear();
+			porta_aberta();
+		}*/
 		if (estadoAtual == 4){ // interrupcao
-			senha(teclado(tx, ty));
+			//senha(teclado(tx, ty));
 		}
 		if (estadoAtual == 5){ // finalizacao
-		
+			estadoAtual = 0; // home
+			clear();
+			home();
+			
 		}
 	}
 }
@@ -662,28 +705,54 @@ void mxt_handler(struct mxt_device *device)
 
 void io_init(void) {
 	// Inicializa clock do periférico PIO responsavel pelo botao
-	pmc_enable_periph_clk(BUT_PIO_ID);
+	pmc_enable_periph_clk(TRAVA_PIO_ID);
 
 	// Configura PIO para lidar com o pino do botão como entrada
 	// com pull-up
-	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_configure(TRAVA_PIO, PIO_INPUT, TRAVA_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
 
 	// Configura interrupção no pino referente ao botao e associa
 	// função de callback caso uma interrupção for gerada
 	// a função de callback é a: but_callback()
-	pio_handler_set(BUT_PIO,
-	BUT_PIO_ID,
-	BUT_IDX_MASK,
+	pio_handler_set(TRAVA_PIO,
+	TRAVA_PIO_ID,
+	TRAVA_IDX_MASK,
 	PIO_IT_FALL_EDGE,
 	but_callback);
 
 	// Ativa interrupção
-	pio_enable_interrupt(BUT_PIO, BUT_IDX_MASK);
+	pio_enable_interrupt(TRAVA_PIO, TRAVA_IDX_MASK);
 
 	// Configura NVIC para receber interrupcoes do PIO do botao
 	// com prioridade 4 (quanto mais próximo de 0 maior)
-	NVIC_EnableIRQ(BUT_PIO_ID);
-	NVIC_SetPriority(BUT_PIO_ID, 4); // Prioridade 4
+	NVIC_EnableIRQ(TRAVA_PIO_ID);
+	NVIC_SetPriority(TRAVA_PIO_ID, 4); // Prioridade 4
+	
+	
+	
+	// Inicializa clock do periférico PIO responsavel pelo botao
+	pmc_enable_periph_clk(PORTA_PIO_ID);
+
+	// Configura PIO para lidar com o pino do botão como entrada
+	// com pull-up
+	pio_configure(PORTA_PIO, PIO_INPUT, PORTA_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+
+	// Configura interrupção no pino referente ao botao e associa
+	// função de callback caso uma interrupção for gerada
+	// a função de callback é a: but_callback()
+	pio_handler_set(PORTA_PIO,
+	PORTA_PIO_ID,
+	PORTA_IDX_MASK,
+	PIO_IT_FALL_EDGE,
+	porta_callback);
+
+	// Ativa interrupção
+	pio_enable_interrupt(PORTA_PIO, PORTA_IDX_MASK);
+
+	// Configura NVIC para receber interrupcoes do PIO do botao
+	// com prioridade 4 (quanto mais próximo de 0 maior)
+	NVIC_EnableIRQ(PORTA_PIO_ID);
+	NVIC_SetPriority(PORTA_PIO_ID, 0); // Prioridade 4
 }
 
 
@@ -701,6 +770,8 @@ int main(void)
 	
 	buttonpress = 0;
 	f_rtt_alarme = true;
+	estadoAtual = 5;
+	
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
 	io_init();
@@ -708,7 +779,9 @@ int main(void)
 	draw_screen();
 	//draw_button(0);
 	//desenha_icone(laundry, 100, 100);
-	home();
+	//home();
+	finalizacao();
+	//porta_aberta();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
 	
@@ -717,7 +790,7 @@ int main(void)
 
 	printf("\n\rmaXTouch data USART transmitter\n\r");
 		
-
+	portaAberta = 0;
 	while (true) {
 		/* Check for any pending messages and run message handler if any
 		 * message is found in the queue */
@@ -732,26 +805,30 @@ int main(void)
 			// reinicia RTT para gerar um novo IRQ
 			RTT_init(pllPreScale, irqRTTvalue);
 			
-			segundo += 1;
+			
 			if (segundo >= 60) {
 				minuto += 1;
 				segundo =0;
-			}
+			} 
 			if (minuto >= 60) {
 				hora += 1;
 				minuto = 0;
 			}
 			sprintf(tempo, "Tempo: %d:%d:%d", hora, minuto, segundo);
+			int min_falta = selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo-minuto-1;
+			int seg_falta = 59 - segundo;
+			sprintf(tempo_faltante, "Tempo ate finalizar: %02d:%02d", min_falta, seg_falta);
 			if (estadoAtual == 2) {
 				clear_min();
-				printa_texto(tempo, 10, 250);
+				//printa_texto(tempo, 10, 250);
+				printa_texto(tempo_faltante, 5, 230);
 				if (minuto >= selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo) {
 					estadoAtual = 5;
 					clear();
 					finalizacao();
 				}	
 			}
-			
+			segundo += 1;
 			
 			f_rtt_alarme = false;
 		}

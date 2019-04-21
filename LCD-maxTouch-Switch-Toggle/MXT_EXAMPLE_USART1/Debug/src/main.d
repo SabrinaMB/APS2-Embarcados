@@ -184,8 +184,9 @@ src/main.d src/main.o: ../src/main.c ../src/asf.h \
  ../src/config/conf_board.h ../src/config/conf_example.h ../src/Pesado.h \
  ../src/Rapido.h ../src/Centrifuga.h ../src/Diario.h ../src/Enxague.h \
  ../src/laundry.h ../src/voltar.h ../src/check.h ../src/errado.h \
- ../src/keypad.h ../src/maquina1.h ../src/right.h ../src/left.h \
- ../src/stop.h ../src/tfont.h ../src/calibri_36.h
+ ../src/keypad.h ../src/smiley.h ../src/warning.h ../src/maquina1.h \
+ ../src/right.h ../src/left.h ../src/stop.h ../src/tfont.h \
+ ../src/calibri_36.h
 
 ../src/asf.h:
 
@@ -594,6 +595,10 @@ c:\program\ files\ (x86)\atmel\studio\7.0\toolchain\arm\arm-gnu-toolchain\arm-no
 ../src/errado.h:
 
 ../src/keypad.h:
+
+../src/smiley.h:
+
+../src/warning.h:
 
 ../src/maquina1.h:
 
