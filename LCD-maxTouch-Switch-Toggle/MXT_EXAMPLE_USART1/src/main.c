@@ -483,14 +483,18 @@ void ajustes(){
 	desenha_icone(check, check_x, check_y);
 	char a[32];
 	char b[32];
+	int t = selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo;
+	if (selectCiclo(indice).heavy == true){
+		t = t*1.2;
+	}
 	sprintf(a, "Lavagem: %s", selectCiclo(indice).nome);
-	sprintf(b, "Tempo Estimado: %d", selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo);
+	sprintf(b, "Tempo Estimado: %d", t);
 	printa_texto(a, 20, 20);
 	printa_texto(b, 20, 60);
 }
 
 void progresso(){ 
-	pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
+	
 	char a[32];
 	sprintf(a, "Em progresso: %s", selectCiclo(indice).nome);
 	printa_texto(a, 20, 20);
@@ -643,12 +647,15 @@ void update_screen(uint32_t tx, uint32_t ty) {
 		if (estadoAtual == 2){ // progresso
 			if (portaAberta == 0){
 				segundo = 0;
+				pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
 				if(tx >= stop_x && tx <= stop_x + stop.width) {
 					if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
 						/*estadoAtual = 4; // senha
 						clear();
 						interrupcao();*/
 						pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
+						pio_clear(AGUA_PIO, AGUA_IDX_MASK);
+						pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
 						estadoAtual = 0; // home
 						clear();
 						home();
@@ -838,22 +845,29 @@ int main(void)
 			
 			if (segundo >= 60) {
 				minuto += 1;
-				segundo =0;
+				segundo = 0;
 			} 
 			if (minuto >= 60) {
 				hora += 1;
 				minuto = 0;
 			}
+			int t = selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo;
+			if (selectCiclo(indice).heavy == true){
+				t = t*1.2;
+			}
 			sprintf(tempo, "Tempo: %d:%d:%d", hora, minuto, segundo);
-			int min_falta = selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo-minuto-1;
+			int min_falta = t-1;
 			int seg_falta = 59 - segundo;
 			sprintf(tempo_faltante, "Tempo ate finalizar: %02d:%02d", min_falta, seg_falta);
 			if (estadoAtual == 2) {
 				clear_min();
 				//printa_texto(tempo, 10, 250);
 				printa_texto(tempo_faltante, 5, 230);
-				if (minuto >= selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo) {
+				
+				if (minuto >= t) {
 					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
+					pio_clear(AGUA_PIO, AGUA_IDX_MASK);
+					pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
 					estadoAtual = 5;
 					clear();
 					finalizacao();
