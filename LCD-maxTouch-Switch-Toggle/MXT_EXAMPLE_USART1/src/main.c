@@ -159,6 +159,25 @@ struct ili9488_opt_t g_ili9488_display_opt;
 #define PORTA_PIO_IDX       17
 #define PORTA_IDX_MASK      (1u << PORTA_PIO_IDX)
 
+
+// LED MOTOR
+#define MOTOR_PIO           PIOA
+#define MOTOR_PIO_ID        ID_PIOA
+#define MOTOR_PIO_IDX       0
+#define MOTOR_IDX_MASK      (1u << MOTOR_PIO_IDX)
+
+// LED AGUA
+#define AGUA_PIO           PIOB
+#define AGUA_PIO_ID        ID_PIOB
+#define AGUA_PIO_IDX       3
+#define AGUA_IDX_MASK      (1u << AGUA_PIO_IDX)
+
+// LED TRANCA PORTA
+#define TRANCA_PIO           PIOC
+#define TRANCA_PIO_ID        ID_PIOC
+#define TRANCA_PIO_IDX       31
+#define TRANCA_IDX_MASK      (1u << TRANCA_PIO_IDX)
+
 // POSICOES DO HOME
 const uint32_t direita_x = 246;
 const uint32_t direita_y = 208;
@@ -471,6 +490,7 @@ void ajustes(){
 }
 
 void progresso(){ 
+	pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
 	char a[32];
 	sprintf(a, "Em progresso: %s", selectCiclo(indice).nome);
 	printa_texto(a, 20, 20);
@@ -628,6 +648,7 @@ void update_screen(uint32_t tx, uint32_t ty) {
 						/*estadoAtual = 4; // senha
 						clear();
 						interrupcao();*/
+						pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 						estadoAtual = 0; // home
 						clear();
 						home();
@@ -704,6 +725,15 @@ void mxt_handler(struct mxt_device *device)
 }
 
 void io_init(void) {
+	pmc_enable_periph_clk(TRANCA_PIO_ID);
+	pio_configure(TRANCA_PIO, PIO_OUTPUT_0, TRANCA_IDX_MASK, PIO_DEFAULT);
+	
+	pmc_enable_periph_clk(MOTOR_PIO_ID);
+	pio_configure(MOTOR_PIO, PIO_OUTPUT_0, MOTOR_IDX_MASK, PIO_DEFAULT);
+	
+	pmc_enable_periph_clk(AGUA_PIO_ID);
+	pio_configure(AGUA_PIO, PIO_OUTPUT_0, AGUA_IDX_MASK, PIO_DEFAULT);
+	
 	// Inicializa clock do periférico PIO responsavel pelo botao
 	pmc_enable_periph_clk(TRAVA_PIO_ID);
 
@@ -770,7 +800,7 @@ int main(void)
 	
 	buttonpress = 0;
 	f_rtt_alarme = true;
-	estadoAtual = 5;
+	//estadoAtual = 5;
 	
 	sysclk_init(); /* Initialize system clocks */
 	board_init();  /* Initialize board */
@@ -779,8 +809,8 @@ int main(void)
 	draw_screen();
 	//draw_button(0);
 	//desenha_icone(laundry, 100, 100);
-	//home();
-	finalizacao();
+	home();
+	//finalizacao();
 	//porta_aberta();
 	/* Initialize the mXT touch device */
 	mxt_init(&device);
@@ -823,6 +853,7 @@ int main(void)
 				//printa_texto(tempo, 10, 250);
 				printa_texto(tempo_faltante, 5, 230);
 				if (minuto >= selectCiclo(indice).enxagueTempo*selectCiclo(indice).enxagueQnt+selectCiclo(indice).centrifugacaoTempo) {
+					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 					estadoAtual = 5;
 					clear();
 					finalizacao();
