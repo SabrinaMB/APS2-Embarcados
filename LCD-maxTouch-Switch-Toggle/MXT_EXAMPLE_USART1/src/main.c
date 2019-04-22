@@ -628,14 +628,7 @@ void update_screen(uint32_t tx, uint32_t ty) {
 			if(ty >= voltar_y) {
 				if(tx >= check_x) {
 					if (portaAberta == 0){
-						segundo = 0;
-						if (indice != 4){
-							pio_set(AGUA_PIO, AGUA_IDX_MASK);
-						}
-						pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
-						if (indice != 3){
-							pio_set(MOTOR_PIO, MOTOR_IDX_MASK);
-						}
+						
 						estadoAtual = 2;
 						clear();
 						progresso();
@@ -655,7 +648,13 @@ void update_screen(uint32_t tx, uint32_t ty) {
 		if (estadoAtual == 2){ // progresso
 			if (portaAberta == 0){
 				segundo = 0;
+				if (indice != 4){
+					pio_set(AGUA_PIO, AGUA_IDX_MASK);
+				}
 				pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
+				if (indice != 3){
+					pio_set(MOTOR_PIO, MOTOR_IDX_MASK);
+				}
 				if(tx >= stop_x && tx <= stop_x + stop.width) {
 					if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
 						pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
@@ -879,10 +878,10 @@ int main(void)
 					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 					pio_clear(AGUA_PIO, AGUA_IDX_MASK);
 					pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
-					estadoAtual = 5;
+					estadoAtual = 4;
 					clear();
 					finalizacao();
-				}*/	
+				}*/
 			}
 			segundo += 1;
 			
