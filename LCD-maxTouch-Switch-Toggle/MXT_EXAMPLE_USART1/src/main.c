@@ -147,6 +147,13 @@ struct ciclo{
 struct ili9488_opt_t g_ili9488_display_opt;
 
 
+//BuzzerBoy e uma nota
+#define BUZZ_PIO			PIOA
+#define BUZZ_PIO_ID			10
+#define BUZZ_PIO_IDX		19u
+#define BUZZ_PIO_IDX_MASK	(1u << BUZZ_PIO_IDX)
+#define NOTE_C1  33
+
 // butaum trava de crianca
 #define TRAVA_PIO           PIOD
 #define TRAVA_PIO_ID        ID_PIOD
@@ -228,6 +235,17 @@ volatile int estadoAtual = 0;
 volatile int indice = 0;    // para acessar o icone certo
 volatile int buttonpress = 1;
 volatile int portaAberta = 0;
+
+void buzz(long frequency, long duration) {
+	long delayValue = 1000000 / frequency / 2;
+	long Cycles = frequency * duration / 1000;
+	for (long i = 0; i < Cycles; i++) {
+		pio_set(BUZZ_PIO, BUZZ_PIO_IDX_MASK);	// 1 no BUZZ
+		delay_us(delayValue);	//delay de acordo com a frequencia e duracao do toque
+		pio_clear(BUZZ_PIO, BUZZ_PIO_IDX_MASK); // 0 no BUZZ
+		delay_us(delayValue);
+	}
+}
 
 void pin_toggle(Pio *pio, uint32_t mask){
 	if(pio_get_output_data_status(pio, mask))
@@ -510,6 +528,7 @@ void porta_aberta(){
 	char a[32];
 	sprintf(a, "PORTA ABERTA!!!");
 	printa_texto(a, 78, 395);
+	buzz(NOTE_C1, 100);
 }
 
 
