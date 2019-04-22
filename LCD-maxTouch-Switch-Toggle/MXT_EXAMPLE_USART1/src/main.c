@@ -138,6 +138,10 @@ struct ciclo{
 #include "stop.h"
 #include "tfont.h"
 #include "calibri_36.h"
+#include "horavidro.h"
+#include "horavidrovirado.h"
+#include "horavidro90.h"
+#include "horavidro270.h"
 
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
@@ -206,6 +210,8 @@ const uint32_t icone_x = 20;
 const uint32_t icone_y = 60;
 const uint32_t stop_x = 100; 
 const uint32_t stop_y = 300;
+const uint32_t horavidro_x = 158;
+const uint32_t horavidro_y = 60;
 
 //RTT
 static void RTT_init(uint16_t pllPreScale, uint32_t IrqNPulses);
@@ -216,10 +222,6 @@ volatile int hora = 0;
 volatile char tempo[32];
 volatile char tempo_faltante[32];
 
-//Senha
-volatile char senhaReal[4] = {1, 2, 3, 4};
-volatile char senhaUser[4] = {0, 0, 0, 0};	
-	
 	
 /*
 Estado:
@@ -230,11 +232,13 @@ Estado:
 4 = interrupcao (senha)
 5 = finalizacao
 */
+
 volatile int estadoAnterior = 0; 
 volatile int estadoAtual = 0;  
 volatile int indice = 0;    // para acessar o icone certo
 volatile int buttonpress = 1;
 volatile int portaAberta = 0;
+volatile int skipper = 0;
 
 void buzz(long frequency, long duration) {
 	long delayValue = 1000000 / frequency / 2;
@@ -265,7 +269,15 @@ void clear_min(void){
 	ili9488_draw_filled_rectangle(250, 230, ILI9488_LCD_WIDTH-1, 265);
 }
 
+void clear_stop(void) {
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(stop_x, stop_y, stop_x + stop.width, stop_y + stop.height);
+}
 
+void clear_horavidro(void) {
+	ili9488_set_foreground_color(COLOR_CONVERT(COLOR_WHITE));
+	ili9488_draw_filled_rectangle(horavidro_x, horavidro_y, horavidro_x + horavidro.width, horavidro_y + stop.height);
+}
 
 void but_callback(void)
 {
@@ -506,7 +518,7 @@ void ajustes(){
 		t = t*1.2;
 	}
 	sprintf(a, "Lavagem: %s", selectCiclo(indice).nome);
-	sprintf(b, "Tempo Estimado: %d", t);
+	sprintf(b, "Tempo Estimado: %d min", t);
 	printa_texto(a, 20, 20);
 	printa_texto(b, 20, 60);
 }
@@ -531,59 +543,27 @@ void porta_aberta(){
 	buzz(NOTE_C1, 100);
 }
 
-
-/*
-
-void interrupcao(){ //senha
-	desenha_icone(keypad, 50, 191);
-	
-} 
-
-void senha(int numero){
-	char a[32];
-	sprintf(a, "numero digitado: %d", numero);
-}
-
-
-int teclado(uint32_t tx, uint32_t ty){
-	if(ty >= 191) {
-		if (tx >= 50 && tx <= 270){ //esta no teclado
-			if (tx <= 123){
-				if (ty >= 405){
-					return 10;  //clear
-				}else if (ty >= 334){
-					return 1;
-				} else if (ty >= 263){
-					return 4;
-				} else if (ty >= 191){
-					return 7;
-				}
-			}else if (tx <= 196){
-				if (ty >= 405){
-					return 0; 
-				}else if (ty >= 334){
-					return 2;
-				} else if (ty >= 263){
-					return 5;
-				} else if (ty >= 191){
-					return 8;
-				}
-			}else{
-			if (ty >= 405){
-				return 11; // ok
-			}else if (ty >= 334){
-				return 3;
-			} else if (ty >= 263){
-				return 6;
-			} else if (ty >= 191){
-				return 9;
-			}
-		}
-		}
+void animate() {
+	if (skipper == 0) {
+		//clear_stop();
+		clear_horavidro();
+		desenha_icone(horavidro90, horavidro_x, horavidro_y);
+		skipper++;
+	} else if (skipper == 1) {
+		clear_horavidro();
+		//desenha_icone(stop, stop_x, stop_y);
+		desenha_icone(horavidrovirado, horavidro_x, horavidro_y);
+		skipper++;
+	} else if (skipper == 2) {
+		clear_horavidro();
+		desenha_icone(horavidro270, horavidro_x, horavidro_y);
+		skipper++;
+	} else {
+		clear_horavidro();
+		desenha_icone(horavidro, horavidro_x, horavidro_y);
+		skipper = 0;
 	}
-	
 }
-*/
 
 void finalizacao(){
 	//ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
@@ -598,8 +578,7 @@ void finalizacao(){
 
 
 
-void porta_callback(void)
-{
+void porta_callback(void) {
 	if (portaAberta == 0 && estadoAtual != 2) {
 		portaAberta = 1;
 	} else {
@@ -612,9 +591,7 @@ void porta_callback(void)
 		
 		
 	}
-	
 }
-
 
 
 uint32_t convert_axis_system_x(uint32_t touch_y) {
@@ -631,7 +608,7 @@ uint32_t convert_axis_system_y(uint32_t touch_x) {
 
 void update_screen(uint32_t tx, uint32_t ty) {
 	if (buttonpress) {
-		if (estadoAtual == 0){ // home
+		if (estadoAtual == 0) { // home
 			if(ty >= esquerda_y-10 && ty <= esquerda_y + left.height + 10) {
 				if(tx >= direita_x && tx <= direita_x + right.width){
 					indice--;
@@ -687,13 +664,6 @@ void update_screen(uint32_t tx, uint32_t ty) {
 			}
 		}
 		
-		/*if (estadoAtual == 3){ // porta aberta
-			clear();
-			porta_aberta();
-		}*/
-		if (estadoAtual == 4){ // interrupcao
-			//senha(teclado(tx, ty));
-		}
 		if (estadoAtual == 5){ // finalizacao
 			estadoAtual = 0; // home
 			clear();
@@ -751,6 +721,9 @@ void mxt_handler(struct mxt_device *device)
 }
 
 void io_init(void) {
+	pmc_enable_periph_clk(BUZZ_PIO_ID);
+	pio_set_output(BUZZ_PIO, BUZZ_PIO_IDX_MASK, 0, 0, 0);
+	
 	pmc_enable_periph_clk(TRANCA_PIO_ID);
 	pio_configure(TRANCA_PIO, PIO_OUTPUT_0, TRANCA_IDX_MASK, PIO_DEFAULT);
 	
@@ -883,6 +856,8 @@ int main(void)
 				//printa_texto(tempo, 10, 250);
 				printa_texto(tempo_faltante, 5, 230);
 				
+				animate();
+				
 				if (minuto >= t) {
 					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 					pio_clear(AGUA_PIO, AGUA_IDX_MASK);
@@ -890,7 +865,15 @@ int main(void)
 					estadoAtual = 5;
 					clear();
 					finalizacao();
-				}	
+				}
+				/*if (segundo >= 10) {
+					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
+					pio_clear(AGUA_PIO, AGUA_IDX_MASK);
+					pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
+					estadoAtual = 5;
+					clear();
+					finalizacao();
+				}*/	
 			}
 			segundo += 1;
 			
