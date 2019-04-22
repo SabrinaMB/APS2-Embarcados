@@ -229,8 +229,7 @@ Estado:
 1 = ajustes
 2 = progresso
 3 = porta aberta
-4 = interrupcao (senha)
-5 = finalizacao
+4 = finalizacao
 */
 
 volatile int estadoAnterior = 0; 
@@ -524,7 +523,6 @@ void ajustes(){
 }
 
 void progresso(){ 
-	
 	char a[32];
 	sprintf(a, "Em progresso: %s", selectCiclo(indice).nome);
 	printa_texto(a, 20, 20);
@@ -629,16 +627,30 @@ void update_screen(uint32_t tx, uint32_t ty) {
 		if (estadoAtual == 1){ // ajustes
 			if(ty >= voltar_y) {
 				if(tx >= check_x) {
-					estadoAtual = 2;
-					clear();
-					progresso();
-				} else if(tx <= voltar_x+voltar.width) {
+					if (portaAberta == 0){
+						segundo = 0;
+						if (indice != 4){
+							pio_set(AGUA_PIO, AGUA_IDX_MASK);
+						}
+						pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
+						if (indice != 3){
+							pio_set(MOTOR_PIO, MOTOR_IDX_MASK);
+						}
+						estadoAtual = 2;
+						clear();
+						progresso();
+						} else{
+						estadoAtual = 3;
+						clear();
+						porta_aberta();
+					}
+					} else if(tx <= voltar_x+voltar.width) {
 					estadoAtual = 0;
 					clear();
 					home();
 				}
 			}
-		
+			
 		}
 		if (estadoAtual == 2){ // progresso
 			if (portaAberta == 0){
@@ -646,9 +658,6 @@ void update_screen(uint32_t tx, uint32_t ty) {
 				pio_set(TRANCA_PIO, TRANCA_IDX_MASK);
 				if(tx >= stop_x && tx <= stop_x + stop.width) {
 					if(ty >= stop_y-10 && ty <= stop_y+stop.height+10) {
-						/*estadoAtual = 4; // senha
-						clear();
-						interrupcao();*/
 						pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 						pio_clear(AGUA_PIO, AGUA_IDX_MASK);
 						pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
@@ -664,7 +673,7 @@ void update_screen(uint32_t tx, uint32_t ty) {
 			}
 		}
 		
-		if (estadoAtual == 5){ // finalizacao
+		if (estadoAtual == 4){ // finalizacao
 			estadoAtual = 0; // home
 			clear();
 			home();
@@ -862,7 +871,7 @@ int main(void)
 					pio_clear(TRANCA_PIO, TRANCA_IDX_MASK);
 					pio_clear(AGUA_PIO, AGUA_IDX_MASK);
 					pio_clear(MOTOR_PIO, MOTOR_IDX_MASK);
-					estadoAtual = 5;
+					estadoAtual = 4;
 					clear();
 					finalizacao();
 				}
