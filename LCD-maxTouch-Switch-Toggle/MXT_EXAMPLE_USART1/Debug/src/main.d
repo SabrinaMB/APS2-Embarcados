@@ -187,7 +187,7 @@ src/main.d src/main.o: ../src/main.c ../src/asf.h \
  ../src/keypad.h ../src/smiley.h ../src/warning.h ../src/maquina1.h \
  ../src/right.h ../src/left.h ../src/stop.h ../src/tfont.h \
  ../src/calibri_36.h ../src/horavidro.h ../src/horavidrovirado.h \
- ../src/horavidro90.h ../src/horavidro270.h
+ ../src/horavidro90.h ../src/horavidro270.h ../src/lock.h
 
 ../src/asf.h:
 
@@ -620,3 +620,5 @@ c:\program\ files\ (x86)\atmel\studio\7.0\toolchain\arm\arm-gnu-toolchain\arm-no
 ../src/horavidro90.h:
 
 ../src/horavidro270.h:
+
+../src/lock.h:

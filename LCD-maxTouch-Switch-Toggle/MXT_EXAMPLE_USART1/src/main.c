@@ -142,6 +142,7 @@ struct ciclo{
 #include "horavidrovirado.h"
 #include "horavidro90.h"
 #include "horavidro270.h"
+#include "lock.h"
 
 #define MAX_ENTRIES        3
 #define STRING_LENGTH     70
@@ -282,7 +283,7 @@ void but_callback(void)
 {
 	if (buttonpress == 0) {
 		buttonpress = 1;
-		} else {
+	} else {
 		buttonpress = 0;
 	}
 	
@@ -483,6 +484,9 @@ t_ciclo selectCiclo(int index){
 }
 
 void home(){   // t_ciclo t_c){
+	if (!buttonpress){
+		desenha_icone(lock, 288, 0);
+	}
 	if (indice <= -1){
 		indice = 4;
 	}else if (indice >= 5){
@@ -508,6 +512,9 @@ void home(){   // t_ciclo t_c){
 }
 
 void ajustes(){
+	if (!buttonpress){
+		desenha_icone(lock, 288, 0);
+	}
 	desenha_icone(voltar, voltar_x, voltar_y);
 	desenha_icone(check, check_x, check_y);
 	char a[32];
@@ -523,6 +530,9 @@ void ajustes(){
 }
 
 void progresso(){ 
+	if (!buttonpress){
+		desenha_icone(lock, 288, 0);
+	}
 	char a[32];
 	sprintf(a, "Em progresso: %s", selectCiclo(indice).nome);
 	printa_texto(a, 20, 20);
@@ -533,6 +543,9 @@ void progresso(){
 }
 
 void porta_aberta(){
+	if (!buttonpress){
+		desenha_icone(lock, 288, 0);
+	}
 	clear();
 	desenha_icone(warning, 32, 69);
 	char a[32];
@@ -564,6 +577,9 @@ void animate() {
 }
 
 void finalizacao(){
+	if (!buttonpress){
+		desenha_icone(lock, 288, 0);
+	}
 	//ili9488_set_foreground_color(COLOR_CONVERT(COLOR_GREEN));
 	//ili9488_draw_filled_rectangle(0, 0, ILI9488_LCD_WIDTH-1, ILI9488_LCD_HEIGHT-1);
 	char a[32];
@@ -678,6 +694,9 @@ void update_screen(uint32_t tx, uint32_t ty) {
 			home();
 			
 		}
+	}
+	else{
+		desenha_icone(lock, 300, 0);
 	}
 }
 
